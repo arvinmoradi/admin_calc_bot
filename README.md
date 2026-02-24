@@ -1,2 +1,2 @@
-# calc_admin_price_by_gb
-Calculate the cost based on the configuration that the admin creates and send all the information to the channel with this Telegram bot.
+# Admin Calc Bot
+A Telegram bot to calculate and manage prices and balances for multiple admins.

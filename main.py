@@ -46,6 +46,7 @@ def notify_all(message, text):
 def reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(KeyboardButton('💾 Create'), KeyboardButton('🔄 Reset'), KeyboardButton('✖️ Remove'))
+    markup.row(KeyboardButton('➕ Add'), KeyboardButton('➖ Reduce'))
     markup.row(KeyboardButton('💰 Edit Balance'), KeyboardButton('💸 Payment'))
     markup.row(KeyboardButton('❌ Cancel'))
     return markup
@@ -72,7 +73,7 @@ def ask_volume_or_duration(message, next_func, account_type, username, action):
     bot.register_next_step_handler(message, lambda m: next_func(m, account_type, username, action))
     
 def is_admin_and_valid_command(message):
-    return is_admin(message) and (message.text in ['💾 Create', '🔄 Reset', '✖️ Remove'])
+    return is_admin(message) and (message.text in ['💾 Create', '🔄 Reset', '✖️ Remove', '➕ Add', '➖ Reduce'])
 #---------------------------------------------------
 @bot.message_handler(func=is_admin_and_valid_command)
 def type_account_message(message):
@@ -114,15 +115,19 @@ def process_data_final(message, account_type, username, action):
         traffic = '*'
         duration = data
 
-    if (action == 'Create') or (action == 'Reset'):
+    if (action == 'Create') or (action == 'Reset') or (action == 'Add') or (action == 'Reduce'):
         balance += price
-    elif (action == 'Remove'):
+    elif action == 'Remove':
         balance -= price
+    else:
+        return
         
     symb = {
         'Create' : '🆕',
         'Reset' : '🔄️',
-        'Remove' : '❌' 
+        'Remove' : '❌',
+        'Add' : '➕',
+        'Reduce' : '➖'
     }
     
     logo = symb[action]
@@ -136,8 +141,8 @@ def process_data_final(message, account_type, username, action):
         f"🧾 Account Type : {account_type}\n\n"
         f"🔃 Traffic : {traffic} GB\n\n"
         f"📅 Duration : {duration} Month\n\n"
-        f"💸 Price : {price} T\n\n"
-        f"💰 Current Account : {balance} T</b>\n",
+        f"💸 Price : {price} Toman\n\n"
+        f"💰 Current Balance : {balance:.2f} Toman</b>\n",
         parse_mode='HTML'
     )
 #---------------------------------------------------

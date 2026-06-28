@@ -8,6 +8,7 @@
 BASE_DIR="$HOME/calc_admin_price_bot"
 REPO_URL="https://github.com/arvinmoradi/admin_calc_bot.git"
 REPO_NAME="admin_calc_bot_src"
+FETCH_TMP_DIR=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -70,7 +71,7 @@ fetch_source() {
     fi
 
     echo -e "${GREEN}✓ Source fetched successfully.${NC}"
-    echo "$tmp_dir"
+    FETCH_TMP_DIR="$tmp_dir"
     return 0
 }
 
@@ -119,12 +120,12 @@ add_admin() {
 
     echo -e "\n${YELLOW}⏳ Setting up admin \"${user_name}\"...${NC}\n"
 
-    local tmp_dir
-    tmp_dir=$(fetch_source)
+    fetch_source
     if [ $? -ne 0 ]; then
         read -rp "Press Enter to go back..."
         return 1
     fi
+    local tmp_dir="$FETCH_TMP_DIR"
 
     mkdir -p "$admin_dir"
     echo -e "${GREEN}✓ Admin directory created: ${admin_dir}${NC}"
@@ -301,7 +302,6 @@ update_project() {
         return
     fi
 
-    # List admins
     echo -e "${CYAN}Available admins:${NC}"
     local i=1
     local admins=()
@@ -339,13 +339,12 @@ update_project() {
         targets=("$user_name")
     fi
 
-    # Fetch latest source once
-    local tmp_dir
-    tmp_dir=$(fetch_source)
+    fetch_source
     if [ $? -ne 0 ]; then
         read -rp "Press Enter to go back..."
         return 1
     fi
+    local tmp_dir="$FETCH_TMP_DIR"
 
     echo ""
 
@@ -353,23 +352,19 @@ update_project() {
         local admin_dir="${BASE_DIR}/${user_name}"
         echo -e "${CYAN}─── Updating \"${user_name}\" ───${NC}"
 
-        # Stop service
         if systemctl is-active --quiet "${user_name}_bot.service" 2>/dev/null; then
             systemctl stop "${user_name}_bot.service"
             echo -e "  ${YELLOW}⏹ Service stopped.${NC}"
         fi
 
-        # Backup .env
         if [ -f "${admin_dir}/.env" ]; then
             cp "${admin_dir}/.env" "${admin_dir}/.env.bak"
             echo -e "  ${GREEN}✓ .env backed up.${NC}"
         fi
 
-        # Replace main.py and requirements.txt
         cp "${tmp_dir}/main.py" "${admin_dir}/main.py"
         echo -e "  ${GREEN}✓ main.py updated.${NC}"
 
-        # Update requirements only if changed
         if ! diff -q "${tmp_dir}/requirements.txt" "${admin_dir}/requirements.txt" &>/dev/null; then
             cp "${tmp_dir}/requirements.txt" "${admin_dir}/requirements.txt"
             echo -e "  ${YELLOW}⏳ requirements.txt changed — reinstalling dependencies...${NC}"
@@ -377,7 +372,6 @@ update_project() {
             "${admin_dir}/venv/bin/pip" install -r "${admin_dir}/requirements.txt"
             if [ $? -ne 0 ]; then
                 echo -e "  ${RED}✗ Failed to install dependencies for \"${user_name}\". Skipping restart.${NC}"
-                # Restore .env from backup just in case
                 [ -f "${admin_dir}/.env.bak" ] && mv "${admin_dir}/.env.bak" "${admin_dir}/.env"
                 continue
             fi
@@ -386,13 +380,11 @@ update_project() {
             echo -e "  ${GREEN}✓ requirements.txt unchanged — skipping reinstall.${NC}"
         fi
 
-        # Restore .env (in case it was overwritten)
         if [ -f "${admin_dir}/.env.bak" ]; then
             mv "${admin_dir}/.env.bak" "${admin_dir}/.env"
             echo -e "  ${GREEN}✓ .env restored.${NC}"
         fi
 
-        # Restart service
         systemctl start "${user_name}_bot.service"
         sleep 1
 
@@ -451,27 +443,18 @@ update_script() {
     print_header
     echo -e "${BLUE}═══ Update Script & All Admins ═══${NC}\n"
 
-    # Find where this script is running from
     local script_path
     script_path=$(realpath "$0")
 
-    echo -e "${YELLOW}⏳ Fetching latest version from GitHub...${NC}"
-
-    local tmp_dir="/tmp/${REPO_NAME}"
-    if [ -d "$tmp_dir" ]; then
-        rm -rf "$tmp_dir"
-    fi
-
-    git clone --depth=1 "$REPO_URL" "$tmp_dir" 2>&1
+    fetch_source
     if [ $? -ne 0 ]; then
-        echo -e "${RED}✗ Failed to clone from GitHub. Check your internet connection.${NC}"
         read -rp "Press Enter to go back..."
         return 1
     fi
+    local tmp_dir="$FETCH_TMP_DIR"
 
     echo -e "${GREEN}✓ Latest source fetched.${NC}\n"
 
-    # ─── Update install.sh ───
     if [ -f "${tmp_dir}/install.sh" ]; then
         cp "${tmp_dir}/install.sh" "$script_path"
         chmod +x "$script_path"
@@ -480,7 +463,6 @@ update_script() {
         echo -e "${YELLOW}⚠ install.sh not found in repo — skipping.${NC}"
     fi
 
-    # ─── Update main.py for all admins ───
     if [ -d "$BASE_DIR" ] && [ -n "$(ls -A "$BASE_DIR" 2>/dev/null)" ]; then
         echo ""
         for dir in "${BASE_DIR}"/*/; do
@@ -491,17 +473,14 @@ update_script() {
 
                 echo -e "${CYAN}─── Updating \"${user_name}\" ───${NC}"
 
-                # Stop service
                 if systemctl is-active --quiet "${user_name}_bot.service" 2>/dev/null; then
                     systemctl stop "${user_name}_bot.service"
                     echo -e "  ${YELLOW}⏹ Service stopped.${NC}"
                 fi
 
-                # Update main.py
                 cp "${tmp_dir}/main.py" "${admin_dir}/main.py"
                 echo -e "  ${GREEN}✓ main.py updated.${NC}"
 
-                # Update requirements.txt if changed
                 if ! diff -q "${tmp_dir}/requirements.txt" "${admin_dir}/requirements.txt" &>/dev/null; then
                     cp "${tmp_dir}/requirements.txt" "${admin_dir}/requirements.txt"
                     echo -e "  ${YELLOW}⏳ requirements.txt changed — reinstalling dependencies...${NC}"
@@ -516,7 +495,6 @@ update_script() {
                     echo -e "  ${GREEN}✓ requirements.txt unchanged — skipping reinstall.${NC}"
                 fi
 
-                # Restart service
                 systemctl start "${user_name}_bot.service"
                 sleep 1
 
@@ -541,7 +519,6 @@ update_script() {
     echo -e "${CYAN}ℹ Restarting script to apply new version...${NC}\n"
     sleep 2
 
-    # Re-execute the updated script
     exec bash "$script_path"
 }
 
